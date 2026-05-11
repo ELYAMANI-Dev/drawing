@@ -1,0 +1,20 @@
+<resources>
+    <string name="splash_loading_app">Loading app...</string>
+    <string name="splash_loading_lessons">Loading lesson catalog…</string>
+    <string name="splash_error_empty">No lessons found in the catalog.</string>
+    <string name="splash_error_generic">Could not load lessons.</string>
+    <string name="offline_title">No internet connection</string>
+    <string name="offline_subtitle">Turn on Wi‑Fi or mobile data to continue.</string>
+    <string name="offline_why_link">Why do I need an internet connection?</string>
+    <string name="offline_why_dialog_title">Internet required</string>
+    <string name="offline_why_dialog_body">%1$s loads your lesson list and step images from the internet. Turn on Wi‑Fi or mobile data to use the app.</string>
+    <string name="no_network_body">No internet connection. Check Wi‑Fi or mobile data and try again.</string>
+    <string name="server_error_body">The lesson server could not be reached. Try again in a moment.</string>
+    <string name="content_error_title">Couldn\'t load lessons</string>
+    <string name="content_error_subtitle">We couldn\'t read the lesson list. Tap Try again.</string>
+    <string name="offline_open_network_settings">Network settings</string>
+    <string name="offline_retry">Try again</string>
+    <string name="share_app_body">Try %1$s on Google Play:\n%2$s</string>
+    <string name="exit_dialog_title">Exit %1$s?</string>
+    <string name="share_app_chooser">Share app</string>
+</resources>
