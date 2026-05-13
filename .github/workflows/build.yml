@@ -105,7 +105,7 @@ jobs:
           packageName: ${{ steps.get-package.outputs.package }}
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: beta
-          status: completed
+          status: draft
 
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
