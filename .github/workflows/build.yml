@@ -69,7 +69,13 @@ jobs:
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "AD_CONFIG_URL=${{ secrets.AD_CONFIG_URL }}" >> local.properties
+          PKG=$(grep 'applicationId' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          AD_URL="${{ secrets.AD_CONFIG_URL }}"
+          if [ -z "$AD_URL" ]; then
+            AD_URL="https://elyamani-dev.github.io/ff-skin-tools-api/api/ad-config/${PKG}.json"
+          fi
+          echo "AD_CONFIG_URL=${AD_URL}" >> local.properties
+          echo "AD_CONFIG_URL -> ${AD_URL}"
 
       - name: Decode keystore
         if: env.HAS_KEYSTORE == 'true'
