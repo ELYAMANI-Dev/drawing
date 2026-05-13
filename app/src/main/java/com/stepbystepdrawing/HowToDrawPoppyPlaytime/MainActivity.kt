@@ -407,11 +407,7 @@ private suspend fun preloadHomeImages(
 ) {
     val urls = LinkedHashSet<String>()
     session.cards.forEach { if (it.thumbnailUrl.isNotBlank()) urls += it.thumbnailUrl }
-    session.details.values.forEach { detail ->
-        detail.steps.forEach { step ->
-            if (step.imageUrl.isNotBlank()) urls += step.imageUrl
-        }
-    }
+    // Step images loaded on-demand (prevents OOM on large catalogs)
     if (urls.isEmpty()) {
         onProgress(1f)
         return
