@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Size
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingCard
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingDifficultyFilter
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.cleanTitle
@@ -268,6 +269,7 @@ internal fun LessonCardThumbnail(
     SubcomposeAsyncImage(
         model = ImageRequest.Builder(context)
             .data(imageUrl)
+            .size(256, 256)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
             .crossfade(false)
