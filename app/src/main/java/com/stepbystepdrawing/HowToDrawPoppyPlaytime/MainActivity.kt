@@ -406,7 +406,8 @@ private suspend fun preloadHomeImages(
     onProgress: (Float) -> Unit,
 ) {
     val urls = LinkedHashSet<String>()
-    session.cards.forEach { if (it.thumbnailUrl.isNotBlank()) urls += it.thumbnailUrl }
+    // Only preload first 12 thumbnails (visible on screen); rest loaded by Coil on scroll
+    session.cards.take(12).forEach { if (it.thumbnailUrl.isNotBlank()) urls += it.thumbnailUrl }
     // Step images loaded on-demand (prevents OOM on large catalogs)
     if (urls.isEmpty()) {
         onProgress(1f)
