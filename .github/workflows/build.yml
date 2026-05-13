@@ -78,6 +78,73 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+
+      - name: Get latest versionCode from Play Store and increment
+        id: version
+        env:
+          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
+        run: |
+          if [ -z "$PLAY_KEY" ]; then
+            echo "No Play key, using run_number as fallback"
+            echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$PLAY_KEY" > /tmp/play-key.json
+          npm install --no-save googleapis@latest 2>/dev/null
+          VERSION_CODE=$(node << 'NODESCRIPT'
+          const { google } = require('googleapis');
+          const fs = require('fs');
+          (async () => {
+            try {
+              const key = JSON.parse(fs.readFileSync('/tmp/play-key.json', 'utf8'));
+              const auth = new google.auth.GoogleAuth({
+                credentials: key,
+                scopes: ['https://www.googleapis.com/auth/androidpublisher']
+              });
+              const client = await auth.getClient();
+              const play = google.androidpublisher({ version: 'v3', auth: client });
+              const pkg = fs.readFileSync('app/build.gradle.kts', 'utf8')
+                .match(/applicationId\s*=\s*"([^"]+)"/)?.[1];
+              if (!pkg) { console.log('0'); process.exit(0); }
+              const edit = await play.edits.insert({ packageName: pkg });
+              const editId = edit.data.id;
+              const tracks = ['production', 'beta', 'alpha', 'internal'];
+              let maxCode = 0;
+              for (const track of tracks) {
+                try {
+                  const t = await play.edits.tracks.get({
+                    packageName: pkg, editId, track
+                  });
+                  for (const rel of (t.data.releases || [])) {
+                    for (const vc of (rel.versionCodes || [])) {
+                      if (parseInt(vc) > maxCode) maxCode = parseInt(vc);
+                    }
+                  }
+                } catch (e) { /* track may not exist */ }
+              }
+              await play.edits.delete({ packageName: pkg, editId });
+              console.log(maxCode);
+            } catch (e) {
+              console.error(e.message);
+              console.log('0');
+            }
+          })();
+          NODESCRIPT
+          )
+          rm -f /tmp/play-key.json
+          NEXT_CODE=$((VERSION_CODE + 1))
+          if [ "$NEXT_CODE" -le 1 ]; then
+            NEXT_CODE=${{ github.run_number }}
+            echo "Fallback to run_number: $NEXT_CODE"
+          fi
+          echo "code=$NEXT_CODE" >> "$GITHUB_OUTPUT"
+          echo "Latest versionCode on Play: $VERSION_CODE -> next: $NEXT_CODE"
+
+      - name: Set versionCode in build.gradle.kts
+        run: |
+          sed -i "s/versionCode = [0-9]*/versionCode = ${{ steps.version.outputs.code }}/" app/build.gradle.kts
+          echo "versionCode set to ${{ steps.version.outputs.code }}"
+          grep versionCode app/build.gradle.kts
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
 
