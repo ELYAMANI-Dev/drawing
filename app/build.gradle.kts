@@ -11,7 +11,7 @@ val localProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.stepbystepdrawing.HowToDrawLabubu"
+    namespace = "com.stepbystepdrawing.HowToDrawPoppyPlaytime"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -19,18 +19,30 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.stepbystepdrawing.HowToDrawLabubu"
+        applicationId = "com.stepbystepdrawing.HowToDrawPoppyPlaytime"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = 1
+        versionName = "1.0"
 
         // Launcher label, splash title, and anywhere that uses @string/app_name
-        resValue("string", "app_name", "How to draw Labubu")
+        resValue("string", "app_name", "How to draw Poppy Playtime")
 
         buildConfigField("String", "AD_CONFIG_URL", "\"${localProperties.getProperty("AD_CONFIG_URL", "")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            val ksFile = rootProject.file("keystore.jks")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: localProperties.getProperty("KEYSTORE_PASSWORD", "")
+                keyAlias = System.getenv("KEY_ALIAS") ?: localProperties.getProperty("KEY_ALIAS", "")
+                keyPassword = System.getenv("KEY_PASSWORD") ?: localProperties.getProperty("KEY_PASSWORD", "")
+            }
+        }
     }
 
     buildTypes {
@@ -49,6 +61,11 @@ android {
             // Enable native debug symbols
             ndk {
                 debugSymbolLevel = "FULL"
+            }
+
+            val ksFile = rootProject.file("keystore.jks")
+            if (ksFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }
