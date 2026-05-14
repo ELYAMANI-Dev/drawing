@@ -57,6 +57,7 @@ fun GalleryScreen(
     onOpenFavorites: () -> Unit,
     onOpenProfile: () -> Unit = {},
     onOpenSpinWheel: () -> Unit = {},
+    onOpenCollections: () -> Unit = {},
     favoritesShortcutHighlighted: Boolean,
     onPlayRandom: () -> Unit,
     onShareApp: () -> Unit,
@@ -120,6 +121,7 @@ fun GalleryScreen(
                             onExitClick = onRequestExit,
                             onProfileClick = onOpenProfile,
                             onSpinWheelClick = onOpenSpinWheel,
+                            onCollectionsClick = onOpenCollections,
                         )
                         GalleryHeader(heroTitle = heroTitle)
                         Box(
