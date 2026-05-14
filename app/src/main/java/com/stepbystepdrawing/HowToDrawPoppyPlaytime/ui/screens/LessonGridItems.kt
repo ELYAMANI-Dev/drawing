@@ -269,7 +269,8 @@ internal fun LessonCardThumbnail(
     SubcomposeAsyncImage(
         model = ImageRequest.Builder(context)
             .data(imageUrl)
-            .size(256, 256)
+            .size(128, 128)
+            .precision(coil.size.Precision.INEXACT)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
             .crossfade(false)
