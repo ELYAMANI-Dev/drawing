@@ -7,10 +7,6 @@ on:
     branches: [drawing_characters]
   workflow_dispatch:
 
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   cleanup:
     runs-on: ubuntu-latest
@@ -69,13 +65,7 @@ jobs:
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          PKG=$(grep 'applicationId' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          AD_URL="${{ secrets.AD_CONFIG_URL }}"
-          if [ -z "$AD_URL" ]; then
-            AD_URL="https://pub-60aab9788366407d923c3b1d4a441449.r2.dev/config/${PKG}.json"
-          fi
-          echo "AD_CONFIG_URL=${AD_URL}" >> local.properties
-          echo "AD_CONFIG_URL -> ${AD_URL}"
+          echo "AD_CONFIG_URL=${{ secrets.AD_CONFIG_URL }}" >> local.properties
 
       - name: Decode keystore
         if: env.HAS_KEYSTORE == 'true'
@@ -84,73 +74,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-
-      - name: Get latest versionCode from Play Store and increment
-        id: version
-        env:
-          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        run: |
-          if [ -z "$PLAY_KEY" ]; then
-            echo "No Play key, using run_number as fallback"
-            echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "$PLAY_KEY" > /tmp/play-key.json
-          npm install --no-save googleapis@latest 2>/dev/null
-          VERSION_CODE=$(node << 'NODESCRIPT'
-          const { google } = require('googleapis');
-          const fs = require('fs');
-          (async () => {
-            try {
-              const key = JSON.parse(fs.readFileSync('/tmp/play-key.json', 'utf8'));
-              const auth = new google.auth.GoogleAuth({
-                credentials: key,
-                scopes: ['https://www.googleapis.com/auth/androidpublisher']
-              });
-              const client = await auth.getClient();
-              const play = google.androidpublisher({ version: 'v3', auth: client });
-              const pkg = fs.readFileSync('app/build.gradle.kts', 'utf8')
-                .match(/applicationId\s*=\s*"([^"]+)"/)?.[1];
-              if (!pkg) { console.log('0'); process.exit(0); }
-              const edit = await play.edits.insert({ packageName: pkg });
-              const editId = edit.data.id;
-              const tracks = ['production', 'beta', 'alpha', 'internal'];
-              let maxCode = 0;
-              for (const track of tracks) {
-                try {
-                  const t = await play.edits.tracks.get({
-                    packageName: pkg, editId, track
-                  });
-                  for (const rel of (t.data.releases || [])) {
-                    for (const vc of (rel.versionCodes || [])) {
-                      if (parseInt(vc) > maxCode) maxCode = parseInt(vc);
-                    }
-                  }
-                } catch (e) { /* track may not exist */ }
-              }
-              await play.edits.delete({ packageName: pkg, editId });
-              console.log(maxCode);
-            } catch (e) {
-              console.error(e.message);
-              console.log('0');
-            }
-          })();
-          NODESCRIPT
-          )
-          rm -f /tmp/play-key.json
-          NEXT_CODE=$((VERSION_CODE + 1))
-          if [ "$NEXT_CODE" -le 1 ]; then
-            NEXT_CODE=${{ github.run_number }}
-            echo "Fallback to run_number: $NEXT_CODE"
-          fi
-          echo "code=$NEXT_CODE" >> "$GITHUB_OUTPUT"
-          echo "Latest versionCode on Play: $VERSION_CODE -> next: $NEXT_CODE"
-
-      - name: Set versionCode in build.gradle.kts
-        run: |
-          sed -i "s/versionCode = [0-9]*/versionCode = ${{ steps.version.outputs.code }}/" app/build.gradle.kts
-          echo "versionCode set to ${{ steps.version.outputs.code }}"
-          grep versionCode app/build.gradle.kts
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
 
@@ -172,6 +95,18 @@ jobs:
           echo "package=$PKG" >> "$GITHUB_OUTPUT"
           echo "Package: $PKG"
 
+      - name: Publish to Google Play (beta track)
+        env:
+          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
+        if: env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
+          packageName: ${{ steps.get-package.outputs.package }}
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          track: beta
+          status: completed
+
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -184,17 +119,3 @@ jobs:
         with:
           name: release-aab
           path: app/build/outputs/bundle/release/*.aab
-
-
-      - name: Publish to Google Play (beta track)
-        env:
-          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        if: env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
-          packageName: ${{ steps.get-package.outputs.package }}
-          releaseFiles: app/build/outputs/bundle/release/app-release.aab
-          track: beta
-          status: draft
-
