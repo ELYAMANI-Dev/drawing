@@ -82,6 +82,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.GamificationEngine
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.EngagementManager
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.CollectionsScreen
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.DailyRewardDialog
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.DailyChallengeDialog
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.HintAdDialog
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.LuckyPopupDialog
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.LuckyReward
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.LuckyRewardType
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UserProfile
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UserProfileStore
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.AchievementsScreen
@@ -94,6 +102,7 @@ private enum class MainListDestination {
     Profile,
     Achievements,
     SpinWheel,
+    Collections,
 }
 
 class MainActivity : ComponentActivity() {
@@ -234,6 +243,11 @@ private fun DrawingStepsMainFlow(
     var favoriteDrawingIds by remember { mutableStateOf(favoritesStore.load()) }
     var mainListDestination by remember { mutableStateOf(MainListDestination.Gallery) }
     var userProfile by remember { mutableStateOf(UserProfileStore.load(appContext)) }
+    var showDailyReward by remember { mutableStateOf(EngagementManager.shouldShowDailyReward(appContext)) }
+    var showDailyChallenge by remember { mutableStateOf(false) }
+    var showLuckyPopup by remember { mutableStateOf(EngagementManager.shouldShowLuckyPopup(appContext)) }
+    var luckyReward by remember { mutableStateOf<LuckyReward?>(null) }
+    var showHintDialog by remember { mutableStateOf(false) }
 
     var selectedDrawingId by remember { mutableStateOf<String?>(null) }
     var detailState by remember { mutableStateOf<UiState<DrawingDetails>>(UiState.Loading) }
@@ -323,6 +337,9 @@ private fun DrawingStepsMainFlow(
             mainListDestination == MainListDestination.SpinWheel -> {
                 mainListDestination = MainListDestination.Gallery
             }
+            mainListDestination == MainListDestination.Collections -> {
+                mainListDestination = MainListDestination.Gallery
+            }
             else -> showExitDialog = true
         }
     }
@@ -388,6 +405,13 @@ private fun DrawingStepsMainFlow(
                             },
                             onBack = { mainListDestination = MainListDestination.Gallery },
                         )
+                    MainListDestination.Collections ->
+                        CollectionsScreen(
+                            cards = session.cards,
+                            completedDrawings = userProfile.completedDrawings,
+                            onBack = { mainListDestination = MainListDestination.Gallery },
+                            onSelectLesson = openLesson,
+                        )
                 }
             } else {
                 DetailScreen(
@@ -444,6 +468,73 @@ private fun DrawingStepsMainFlow(
                 )
             }
         }
+    }
+
+    // Daily Reward Dialog
+    if (showDailyReward) {
+        DailyRewardDialog(
+            currentDay = EngagementManager.getDailyRewardDay(appContext),
+            alreadyClaimedToday = EngagementManager.hasClaimedToday(appContext),
+            onClaim = { day ->
+                EngagementManager.claimDailyReward(appContext)
+                userProfile = UserProfileStore.load(appContext)
+                showDailyReward = false
+                showDailyChallenge = true
+            },
+            onDismiss = {
+                showDailyReward = false
+                showDailyChallenge = true
+            }
+        )
+    }
+
+    // Daily Challenge Dialog (after reward)
+    if (showDailyChallenge && !EngagementManager.isDailyChallengeCompleted(appContext)) {
+        val challengeIdx = EngagementManager.getDailyChallengeIndex(session.cards.size)
+        val challengeCard = session.cards.getOrNull(challengeIdx)
+        if (challengeCard != null) {
+            DailyChallengeDialog(
+                challengeCard = challengeCard,
+                isCompleted = false,
+                onStart = { id ->
+                    showDailyChallenge = false
+                    openLesson(id)
+                },
+                onDismiss = { showDailyChallenge = false }
+            )
+        } else {
+            showDailyChallenge = false
+        }
+    }
+
+    // Lucky Popup
+    if (showLuckyPopup) {
+        val (title, desc, xp) = EngagementManager.generateLuckyReward()
+        val reward = LuckyReward(
+            type = if (xp > 0) LuckyRewardType.BONUS_XP else LuckyRewardType.FREE_SPIN,
+            title = title,
+            description = desc,
+            xpAmount = xp,
+        )
+        LuckyPopupDialog(
+            reward = reward,
+            onWatchAdToClaim = {
+                scope.launch {
+                    val act = activity ?: return@launch
+                    if (!act.isFinishing) {
+                        AdService.showRewardedAd(act)
+                        EngagementManager.claimLuckyReward(appContext, reward.xpAmount)
+                        EngagementManager.markLuckyShown(appContext)
+                        userProfile = UserProfileStore.load(appContext)
+                    }
+                }
+                showLuckyPopup = false
+            },
+            onDismiss = {
+                EngagementManager.markLuckyShown(appContext)
+                showLuckyPopup = false
+            }
+        )
     }
 
     if (showExitDialog) {
