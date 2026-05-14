@@ -115,7 +115,9 @@ fun GalleryScreen(
                             favoritesShortcutHighlighted = favoritesShortcutHighlighted,
                             onShare = onShareApp,
                             onPlayClick = onPlayRandom,
-                            onExitClick = onRequestExit
+                            onExitClick = onRequestExit,
+                            onProfileClick = onOpenProfile,
+                            onSpinWheelClick = onOpenSpinWheel,
                         )
                         GalleryHeader(heroTitle = heroTitle)
                         Box(
