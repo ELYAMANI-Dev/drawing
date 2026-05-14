@@ -19,14 +19,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.drawpoppyplaytime.chapter"
+        applicationId = "com.sossi.playtime"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         // Launcher label, splash title, and anywhere that uses @string/app_name
-        resValue("string", "app_name", "how to draw Poppy")
+        resValue("string", "app_name", "Poppy Playtime: Chapter 5")
 
         buildConfigField("String", "AD_CONFIG_URL", "\"${localProperties.getProperty("AD_CONFIG_URL", "")}\"")
 
