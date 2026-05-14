@@ -9,8 +9,12 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingSession
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdManager
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdService
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UserProfileStore
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.QuizOnboardingScreen
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.DrawingStepsTheme
@@ -31,8 +35,16 @@ class QuizActivity : ComponentActivity() {
                 val cards = remember {
                     (DrawingSession.getState() as? DrawingSession.State.Ready)?.cards ?: emptyList()
                 }
+                val scope = rememberCoroutineScope()
                 QuizOnboardingScreen(
                     cards = cards,
+                    onShowAd = {
+                        if (AdManager.isAdsEnabled) {
+                            scope.launch {
+                                AdService.showInterstitialAtSlot(this@QuizActivity, slotIndex = 0)
+                            }
+                        }
+                    },
                     onComplete = { profile ->
                         UserProfileStore.save(this, profile)
                         UserProfileStore.setOnboarded(this)
