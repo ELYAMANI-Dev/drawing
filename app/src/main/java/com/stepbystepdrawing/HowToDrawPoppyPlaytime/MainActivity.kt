@@ -359,6 +359,7 @@ private fun DrawingStepsMainFlow(
                             onOpenFavorites = { mainListDestination = MainListDestination.Favorites },
                             onOpenProfile = { mainListDestination = MainListDestination.Profile },
                             onOpenSpinWheel = { mainListDestination = MainListDestination.SpinWheel },
+                            onOpenCollections = { mainListDestination = MainListDestination.Collections },
                             favoritesShortcutHighlighted = favoriteDrawingIds.isNotEmpty(),
                             onPlayRandom = {
                                 if (session.cards.isNotEmpty()) {
