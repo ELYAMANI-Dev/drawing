@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Collections
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.IconGray
 
 @Composable
@@ -37,6 +38,7 @@ fun TopIconRow(
     onExitClick: () -> Unit = {},
     onProfileClick: (() -> Unit)? = null,
     onSpinWheelClick: (() -> Unit)? = null,
+    onCollectionsClick: (() -> Unit)? = null,
     showTrailingActions: Boolean = true,
     horizontalArrangement: Arrangement.Horizontal = Arrangement.SpaceBetween
 ) {
@@ -116,6 +118,16 @@ fun TopIconRow(
                     tint = IconGray,
                     modifier = Modifier.size(topIconSize)
                 )
+            }
+            if (onCollectionsClick != null) {
+                IconButton(onClick = onCollectionsClick) {
+                    Icon(
+                        Icons.Default.Collections,
+                        contentDescription = "Collections",
+                        tint = IconGray,
+                        modifier = Modifier.size(topIconSize)
+                    )
+                }
             }
             if (onProfileClick != null) {
                 IconButton(onClick = onProfileClick) {
