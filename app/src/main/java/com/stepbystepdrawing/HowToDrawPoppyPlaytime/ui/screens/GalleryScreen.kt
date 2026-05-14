@@ -35,6 +35,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingCard
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.GamificationEngine
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingDifficultyFilter
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UiState
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.matchesDifficulty
@@ -87,6 +88,7 @@ fun GalleryScreen(
                     CenteredMessage("No drawings found.")
                 }
             } else {
+                val context = LocalContext.current
                 var difficultyFilter by remember { mutableStateOf(DrawingDifficultyFilter.All) }
                 val filteredCards = remember(galleryState.data, difficultyFilter) {
                     galleryState.data.filter { it.matchesDifficulty(difficultyFilter) }
@@ -191,9 +193,15 @@ fun GalleryScreen(
                             items(
                                 items = filteredCards,
                             ) { card ->
+                                val cardIndex = galleryState.data.indexOf(card)
+                                val isLocked = !GamificationEngine.isUnlocked(context, card.id, cardIndex)
                                 LessonGridCard(
                                     card = card,
-                                    onSelect = onSelect
+                                    isLocked = isLocked,
+                                    onSelect = { id ->
+                                        if (!isLocked) onSelect(id)
+                                        else onOpenSpinWheel()
+                                    }
                                 )
                             }
                         }
