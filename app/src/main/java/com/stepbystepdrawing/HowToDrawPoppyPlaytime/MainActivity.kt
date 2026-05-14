@@ -425,7 +425,8 @@ private suspend fun preloadHomeImages(
                 loader.execute(
                     ImageRequest.Builder(appContext)
                         .data(url)
-                        .size(256, 256)
+                        .size(128, 128)
+                        .precision(coil.size.Precision.INEXACT)
                         .memoryCachePolicy(CachePolicy.ENABLED)
                         .diskCachePolicy(CachePolicy.ENABLED)
                         .networkCachePolicy(CachePolicy.ENABLED)
