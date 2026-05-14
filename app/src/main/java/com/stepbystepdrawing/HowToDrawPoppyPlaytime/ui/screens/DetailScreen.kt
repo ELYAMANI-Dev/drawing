@@ -32,6 +32,7 @@ fun DetailScreen(
     onToggleFavorite: () -> Unit,
     onStartSteps: () -> Unit,
     onGoToPreview: () -> Unit,
+    onHintRequest: () -> Unit = {},
     onCompleteLesson: () -> Unit,
 ) {
     when (detailState) {
