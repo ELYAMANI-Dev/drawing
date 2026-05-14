@@ -81,10 +81,19 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.GamificationEngine
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UserProfile
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UserProfileStore
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.AchievementsScreen
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.ProfileScreen
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.SpinWheelScreen
 
 private enum class MainListDestination {
     Gallery,
     Favorites,
+    Profile,
+    Achievements,
+    SpinWheel,
 }
 
 class MainActivity : ComponentActivity() {
@@ -224,6 +233,7 @@ private fun DrawingStepsMainFlow(
     val favoritesStore = remember(appContext) { FavoritesStore(appContext) }
     var favoriteDrawingIds by remember { mutableStateOf(favoritesStore.load()) }
     var mainListDestination by remember { mutableStateOf(MainListDestination.Gallery) }
+    var userProfile by remember { mutableStateOf(UserProfileStore.load(appContext)) }
 
     var selectedDrawingId by remember { mutableStateOf<String?>(null) }
     var detailState by remember { mutableStateOf<UiState<DrawingDetails>>(UiState.Loading) }
@@ -304,6 +314,15 @@ private fun DrawingStepsMainFlow(
             mainListDestination == MainListDestination.Favorites -> {
                 mainListDestination = MainListDestination.Gallery
             }
+            mainListDestination == MainListDestination.Profile -> {
+                mainListDestination = MainListDestination.Gallery
+            }
+            mainListDestination == MainListDestination.Achievements -> {
+                mainListDestination = MainListDestination.Profile
+            }
+            mainListDestination == MainListDestination.SpinWheel -> {
+                mainListDestination = MainListDestination.Gallery
+            }
             else -> showExitDialog = true
         }
     }
@@ -321,6 +340,8 @@ private fun DrawingStepsMainFlow(
                             heroTitle = session.appTitle,
                             galleryState = galleryState,
                             onOpenFavorites = { mainListDestination = MainListDestination.Favorites },
+                            onOpenProfile = { mainListDestination = MainListDestination.Profile },
+                            onOpenSpinWheel = { mainListDestination = MainListDestination.SpinWheel },
                             favoritesShortcutHighlighted = favoriteDrawingIds.isNotEmpty(),
                             onPlayRandom = {
                                 if (session.cards.isNotEmpty()) {
@@ -340,6 +361,32 @@ private fun DrawingStepsMainFlow(
                             favoriteCards = favoriteCards,
                             onBack = { mainListDestination = MainListDestination.Gallery },
                             onSelectLesson = openLesson
+                        )
+                    MainListDestination.Profile ->
+                        ProfileScreen(
+                            profile = userProfile,
+                            onBack = { mainListDestination = MainListDestination.Gallery },
+                            onAchievements = { mainListDestination = MainListDestination.Achievements },
+                        )
+                    MainListDestination.Achievements ->
+                        AchievementsScreen(
+                            profile = userProfile,
+                            onBack = { mainListDestination = MainListDestination.Profile },
+                        )
+                    MainListDestination.SpinWheel ->
+                        SpinWheelScreen(
+                            lockedCards = session.cards.drop(20).filter { it.id !in userProfile.unlockedCharacters },
+                            canSpin = GamificationEngine.canSpin(appContext),
+                            onWatchAdToSpin = {
+                                scope.launch {
+                                    val act = activity ?: return@launch
+                                    if (!act.isFinishing) AdService.showRewardedAd(act)
+                                }
+                            },
+                            onWon = { card ->
+                                userProfile = GamificationEngine.onSpinUsed(appContext, card.id)
+                            },
+                            onBack = { mainListDestination = MainListDestination.Gallery },
                         )
                 }
             } else {
@@ -387,7 +434,13 @@ private fun DrawingStepsMainFlow(
                         currentStep = 0
                     },
                     onGoToPreview = { showResultFirst = true },
-                    onCompleteLesson = { showResultFirst = true },
+                    onCompleteLesson = {
+                        showResultFirst = true
+                        val id = selectedDrawingId
+                        if (id != null) {
+                            userProfile = GamificationEngine.onDrawingCompleted(appContext, id)
+                        }
+                    },
                 )
             }
         }
