@@ -25,8 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Boy
-import androidx.compose.material.icons.filled.Girl
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -185,8 +185,8 @@ private fun GenderStep(selected: Gender, onSelect: (Gender) -> Unit) {
         Text("Are you a...", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(32.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            GenderOption(Icons.Filled.Boy, "Boy", selected == Gender.BOY) { onSelect(Gender.BOY) }
-            GenderOption(Icons.Filled.Girl, "Girl", selected == Gender.GIRL) { onSelect(Gender.GIRL) }
+            GenderOption(Icons.Filled.Face, "Boy", selected == Gender.BOY) { onSelect(Gender.BOY) }
+            GenderOption(Icons.Filled.Favorite, "Girl", selected == Gender.GIRL) { onSelect(Gender.GIRL) }
         }
     }
 }
