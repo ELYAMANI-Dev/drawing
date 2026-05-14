@@ -57,6 +57,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Size
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.analytics.MixpanelAnalytics
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingDetails
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingSession
@@ -424,6 +425,7 @@ private suspend fun preloadHomeImages(
                 loader.execute(
                     ImageRequest.Builder(appContext)
                         .data(url)
+                        .size(256, 256)
                         .memoryCachePolicy(CachePolicy.ENABLED)
                         .diskCachePolicy(CachePolicy.ENABLED)
                         .networkCachePolicy(CachePolicy.ENABLED)
