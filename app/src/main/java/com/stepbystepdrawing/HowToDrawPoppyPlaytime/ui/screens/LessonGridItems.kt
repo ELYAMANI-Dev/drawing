@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Looks3
 import androidx.compose.material.icons.filled.LooksOne
 import androidx.compose.material.icons.filled.LooksTwo
@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -183,65 +185,87 @@ internal fun FeaturedLessonRow(
 @Composable
 internal fun LessonGridCard(
     card: DrawingCard,
+    isLocked: Boolean = false,
     onSelect: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(0.9f)
-            .border(1.dp, CardBorderLight, RoundedCornerShape(12.dp)),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
+    Box {
+        Card(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onSelect(card.id) }
+                .fillMaxWidth()
+                .aspectRatio(0.9f)
+                .border(1.dp, if (isLocked) CardBorderLight else CardBorderLight, RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .alpha(if (isLocked) 0.5f else 1f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onSelect(card.id) }
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${card.totalSteps}",
+                        color = Color(0xFFF59E0B),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Steps",
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LessonCardThumbnail(
+                        context = context,
+                        imageUrl = card.thumbnailUrl,
+                        contentDescription = cleanTitle(card.title),
+                        contentScale = ContentScale.Fit,
+                        loadingIconSize = 36.dp,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 Text(
-                    text = "${card.totalSteps}",
-                    color = Color(0xFFF59E0B),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Steps",
+                    text = cleanTitle(card.title).uppercase(),
                     color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
+                    maxLines = 1
                 )
             }
+        }
+        if (isLocked) {
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                    .size(32.dp)
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xCC000000)),
                 contentAlignment = Alignment.Center
             ) {
-                LessonCardThumbnail(
-                    context = context,
-                    imageUrl = card.thumbnailUrl,
-                    contentDescription = cleanTitle(card.title),
-                    contentScale = ContentScale.Fit,
-                    loadingIconSize = 36.dp,
-                    modifier = Modifier.fillMaxSize(),
+                Icon(
+                    Icons.Filled.Lock,
+                    contentDescription = "Locked",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
                 )
             }
-            Text(
-                text = cleanTitle(card.title).uppercase(),
-                color = TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                maxLines = 1
-            )
         }
     }
 }
