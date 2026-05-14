@@ -186,7 +186,6 @@ fun GalleryScreen(
                         } else {
                             items(
                                 items = filteredCards,
-                                key = { it.id }
                             ) { card ->
                                 LessonGridCard(
                                     card = card,
