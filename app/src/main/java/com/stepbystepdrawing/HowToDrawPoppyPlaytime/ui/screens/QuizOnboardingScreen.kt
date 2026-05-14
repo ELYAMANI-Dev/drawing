@@ -68,6 +68,7 @@ private const val TOTAL_STEPS = 6
 @Composable
 fun QuizOnboardingScreen(
     cards: List<DrawingCard>,
+    onShowAd: () -> Unit = {},
     onComplete: (UserProfile) -> Unit,
 ) {
     var step by remember { mutableIntStateOf(0) }
@@ -118,6 +119,7 @@ fun QuizOnboardingScreen(
         Button(
             onClick = {
                 if (step < TOTAL_STEPS - 1) {
+                    onShowAd()
                     step++
                 } else {
                     onComplete(
