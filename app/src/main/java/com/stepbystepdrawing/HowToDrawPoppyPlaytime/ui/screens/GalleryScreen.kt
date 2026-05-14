@@ -54,6 +54,8 @@ fun GalleryScreen(
     heroTitle: String,
     galleryState: UiState<List<DrawingCard>>,
     onOpenFavorites: () -> Unit,
+    onOpenProfile: () -> Unit = {},
+    onOpenSpinWheel: () -> Unit = {},
     favoritesShortcutHighlighted: Boolean,
     onPlayRandom: () -> Unit,
     onShareApp: () -> Unit,
