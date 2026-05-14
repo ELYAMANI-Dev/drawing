@@ -52,6 +52,7 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.analytics.MixpanelAnalytics
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.CatalogLoad
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingApi
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingSession
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UserProfileStore
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UnavailableKind
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.hasInternetConnection
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.isLikelyNoNetwork
@@ -103,7 +104,11 @@ class SplashActivity : ComponentActivity() {
                 SplashScreen(
                     fetchId = fetchId,
                     onContinue = {
-                        startActivity(Intent(this, MainActivity::class.java))
+                        val target = if (UserProfileStore.isOnboarded(this))
+                            MainActivity::class.java
+                        else
+                            QuizActivity::class.java
+                        startActivity(Intent(this, target))
                         finish()
                     },
                 )
