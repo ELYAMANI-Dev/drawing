@@ -53,6 +53,7 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.CatalogLoad
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingApi
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingSession
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UserProfileStore
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.EngagementManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UnavailableKind
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.hasInternetConnection
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.isLikelyNoNetwork
@@ -108,6 +109,12 @@ class SplashActivity : ComponentActivity() {
                             MainActivity::class.java
                         else
                             QuizActivity::class.java
+                        // Set OneSignal tags for streak reminder automation
+                        val streakData = EngagementManager.getStreakNotificationData(this)
+                        if (streakData != null) {
+                            OneSignal.User.addTag("streak", streakData["streak"] ?: "0")
+                            OneSignal.User.addTag("last_active", System.currentTimeMillis().toString())
+                        }
                         startActivity(Intent(this, target))
                         finish()
                     },
