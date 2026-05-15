@@ -41,8 +41,10 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.matchesDifficulty
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.CenteredLoading
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.CenteredMessage
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.DailyStreakCard
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.GalleryNativeAdRow
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.TopIconRow
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.WeeklyChallengeCard
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.CardBorderLight
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.PrimaryBlue
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.PrimaryBlueDim
@@ -58,7 +60,17 @@ fun GalleryScreen(
     onPlayRandom: () -> Unit,
     onShareApp: () -> Unit,
     onRequestExit: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    // Retention
+    streak: Int = 0,
+    totalStars: Int = 0,
+    canSpin: Boolean = false,
+    onSpinClick: () -> Unit = {},
+    canPlayQuiz: Boolean = true,
+    onQuizClick: () -> Unit = {},
+    quizCooldownText: String = "",
+    weeklyLessons: Int = 0,
+    weeklyTarget: Int = 5,
 ) {
     when (galleryState) {
         is UiState.Loading -> Box(
@@ -143,6 +155,25 @@ fun GalleryScreen(
                             FeaturedLessonRow(
                                 cards = galleryState.data.take(3),
                                 onSelect = onSelect
+                            )
+                        }
+
+                        item(span = { GridItemSpan(2) }) {
+                            DailyStreakCard(
+                                streak = streak,
+                                totalStars = totalStars,
+                                onSpinClick = onSpinClick,
+                                canSpin = canSpin,
+                                onQuizClick = onQuizClick,
+                                canPlayQuiz = canPlayQuiz,
+                                cooldownText = quizCooldownText,
+                            )
+                        }
+
+                        item(span = { GridItemSpan(2) }) {
+                            WeeklyChallengeCard(
+                                lessonsCompleted = weeklyLessons,
+                                target = weeklyTarget,
                             )
                         }
 

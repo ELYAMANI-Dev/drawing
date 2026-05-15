@@ -62,9 +62,13 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.analytics.MixpanelAnalytics
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingDetails
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.DrawingSession
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.FavoritesStore
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.RetentionManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UiState
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdService
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.SoundManager
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.QuizScreen
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.SpinWheelDialog
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.OfflineConnectionScreen
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.DetailScreen
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.FavoritesScreen
@@ -77,6 +81,7 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.TextPrimary
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.TextSecondary
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -89,8 +94,12 @@ private enum class MainListDestination {
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var retentionManager: RetentionManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        retentionManager = RetentionManager(this)
+        SoundManager.init(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes = window.attributes.apply {
                 layoutInDisplayCutoutMode =
@@ -124,6 +133,16 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         MixpanelAnalytics.flush()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        retentionManager.recordSessionEnd()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        SoundManager.release()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -222,6 +241,7 @@ private fun DrawingStepsMainFlow(
     val appContext = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     val favoritesStore = remember(appContext) { FavoritesStore(appContext) }
+    val retentionManager = remember(appContext) { RetentionManager(appContext) }
     var favoriteDrawingIds by remember { mutableStateOf(favoritesStore.load()) }
     var mainListDestination by remember { mutableStateOf(MainListDestination.Gallery) }
 
@@ -230,6 +250,50 @@ private fun DrawingStepsMainFlow(
     var currentStep by remember { mutableIntStateOf(0) }
     var showResultFirst by remember { mutableStateOf(true) }
     var showExitDialog by remember { mutableStateOf(false) }
+
+    // Retention state
+    var showSpinWheel by remember { mutableStateOf(false) }
+    var showQuiz by remember { mutableStateOf(false) }
+    var showStreakDialog by remember { mutableStateOf(false) }
+    var showComebackBonus by remember { mutableStateOf(false) }
+    var streak by remember { mutableIntStateOf(retentionManager.getDailyStreak()) }
+    var totalStars by remember { mutableIntStateOf(retentionManager.getTotalStars()) }
+    var canSpin by remember { mutableStateOf(retentionManager.canSpin()) }
+    var canPlayQuiz by remember { mutableStateOf(retentionManager.canPlayQuiz()) }
+    var quizCooldownText by remember { mutableStateOf("") }
+    val (weeklyLessons, weeklyTarget) = remember { retentionManager.getWeeklyProgress() }
+    var weeklyLessonsState by remember { mutableIntStateOf(weeklyLessons) }
+
+    // Cooldown timer
+    LaunchedEffect(canPlayQuiz) {
+        if (!canPlayQuiz) {
+            while (true) {
+                val remaining = retentionManager.getQuizCooldownRemainingMs()
+                if (remaining <= 0) {
+                    canPlayQuiz = true
+                    quizCooldownText = ""
+                    break
+                }
+                val hours = remaining / (1000 * 60 * 60)
+                val mins = (remaining % (1000 * 60 * 60)) / (1000 * 60)
+                quizCooldownText = "${hours}h${mins}m"
+                kotlinx.coroutines.delay(30_000L)
+            }
+        }
+    }
+
+    // On app open: check streak, comeback bonus
+    LaunchedEffect(Unit) {
+        val newStreak = retentionManager.checkAndUpdateStreak()
+        streak = newStreak
+        if (!retentionManager.isStreakClaimedToday() && retentionManager.getStreakBonus(newStreak) > 0) {
+            showStreakDialog = true
+        }
+        val comebackBonus = retentionManager.getOfflineComebackBonus()
+        if (comebackBonus > 0) {
+            showComebackBonus = true
+        }
+    }
 
     LaunchedEffect(Unit) {
         AdService.showAppOpenAd(activity)
@@ -297,6 +361,7 @@ private fun DrawingStepsMainFlow(
 
     BackHandler {
         when {
+            showQuiz -> { showQuiz = false }
             selectedDrawingId != null -> {
                 selectedDrawingId = null
                 detailState = UiState.Loading
@@ -320,7 +385,16 @@ private fun DrawingStepsMainFlow(
                         GalleryScreen(
                             heroTitle = session.appTitle,
                             galleryState = galleryState,
-                            onOpenFavorites = { mainListDestination = MainListDestination.Favorites },
+                            onOpenFavorites = {
+                                mainListDestination = MainListDestination.Favorites
+                                // Nav ad counter
+                                scope.launch {
+                                    if (AdManager.isAdsEnabled && retentionManager.incrementNavAndCheckAd()) {
+                                        val act = activity ?: return@launch
+                                        AdService.showInterstitial(act)
+                                    }
+                                }
+                            },
                             favoritesShortcutHighlighted = favoriteDrawingIds.isNotEmpty(),
                             onPlayRandom = {
                                 if (session.cards.isNotEmpty()) {
@@ -333,7 +407,16 @@ private fun DrawingStepsMainFlow(
                                 shareDrawingStepsOnPlayStore(composeContext)
                             },
                             onRequestExit = { showExitDialog = true },
-                            onSelect = openLesson
+                            onSelect = openLesson,
+                            streak = streak,
+                            totalStars = totalStars,
+                            canSpin = canSpin,
+                            onSpinClick = { showSpinWheel = true },
+                            canPlayQuiz = canPlayQuiz,
+                            onQuizClick = { showQuiz = true },
+                            quizCooldownText = quizCooldownText,
+                            weeklyLessons = weeklyLessonsState,
+                            weeklyTarget = weeklyTarget,
                         )
                     MainListDestination.Favorites ->
                         FavoritesScreen(
@@ -387,7 +470,13 @@ private fun DrawingStepsMainFlow(
                         currentStep = 0
                     },
                     onGoToPreview = { showResultFirst = true },
-                    onCompleteLesson = { showResultFirst = true },
+                    onCompleteLesson = {
+                        showResultFirst = true
+                        retentionManager.recordLessonCompleted()
+                        weeklyLessonsState = retentionManager.getWeeklyProgress().first
+                        val id = selectedDrawingId ?: ""
+                        MixpanelAnalytics.trackLessonCompleted(id, (detailState as? UiState.Success)?.data?.steps?.size ?: 0)
+                    },
                 )
             }
         }
@@ -398,6 +487,130 @@ private fun DrawingStepsMainFlow(
             onDismiss = { showExitDialog = false },
             onConfirmExit = { activity?.finish() }
         )
+    }
+
+    // Quiz fullscreen
+    if (showQuiz) {
+        QuizScreen(
+            retentionManager = retentionManager,
+            onClose = { showQuiz = false },
+            onQuizComplete = { score, total ->
+                showQuiz = false
+                canPlayQuiz = false
+                totalStars = retentionManager.getTotalStars()
+                SoundManager.playCelebration()
+            }
+        )
+    }
+
+    // Spin wheel dialog
+    if (showSpinWheel) {
+        SpinWheelDialog(
+            retentionManager = retentionManager,
+            onDismiss = {
+                showSpinWheel = false
+                canSpin = retentionManager.canSpin()
+                totalStars = retentionManager.getTotalStars()
+            },
+            onRewardEarned = { reward ->
+                SoundManager.playCoin()
+                totalStars = retentionManager.getTotalStars()
+            }
+        )
+    }
+
+    // Daily streak dialog
+    if (showStreakDialog) {
+        val bonus = retentionManager.getStreakBonus(streak)
+        Dialog(
+            onDismissRequest = {
+                retentionManager.claimStreakBonus()
+                retentionManager.addStars(bonus)
+                totalStars = retentionManager.getTotalStars()
+                showStreakDialog = false
+                SoundManager.playCoin()
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .background(Color.White, RoundedCornerShape(24.dp))
+                    .border(2.dp, BorderStrong, RoundedCornerShape(24.dp))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("🔥 $streak Day Streak!", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                Spacer(Modifier.height(8.dp))
+                Text("You earned +$bonus ⭐", fontSize = 18.sp, color = TextSecondary)
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(PrimaryBlueDim, RoundedCornerShape(14.dp))
+                        .border(2.dp, PrimaryBlue, RoundedCornerShape(14.dp))
+                        .clickable {
+                            retentionManager.claimStreakBonus()
+                            retentionManager.addStars(bonus)
+                            totalStars = retentionManager.getTotalStars()
+                            showStreakDialog = false
+                            SoundManager.playCoin()
+                        }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Claim!", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+            }
+        }
+    }
+
+    // Comeback bonus dialog
+    if (showComebackBonus) {
+        val bonus = retentionManager.getOfflineComebackBonus()
+        Dialog(
+            onDismissRequest = {
+                retentionManager.addStars(bonus)
+                retentionManager.clearComebackBonus()
+                totalStars = retentionManager.getTotalStars()
+                showComebackBonus = false
+                SoundManager.playCoin()
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .background(Color.White, RoundedCornerShape(24.dp))
+                    .border(2.dp, BorderStrong, RoundedCornerShape(24.dp))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("👋 Welcome Back!", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                Spacer(Modifier.height(8.dp))
+                Text("You've been away! Here's +$bonus ⭐", fontSize = 18.sp, color = TextSecondary)
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(PrimaryBlueDim, RoundedCornerShape(14.dp))
+                        .border(2.dp, PrimaryBlue, RoundedCornerShape(14.dp))
+                        .clickable {
+                            retentionManager.addStars(bonus)
+                            retentionManager.clearComebackBonus()
+                            totalStars = retentionManager.getTotalStars()
+                            showComebackBonus = false
+                            SoundManager.playCoin()
+                        }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Collect!", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+            }
+        }
     }
 }
 
