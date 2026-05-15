@@ -96,6 +96,8 @@ jobs:
           echo "Package: $PKG"
 
       - name: Publish to Google Play (beta track)
+        id: publish
+        continue-on-error: true
         env:
           PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
         if: env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
@@ -107,10 +109,16 @@ jobs:
           track: beta
           status: completed
 
-      - name: Retry publish on failure
+      - name: Wait before retry
+        if: steps.publish.outcome == 'failure'
+        run: sleep 10
+
+      - name: Retry publish (attempt 2)
+        id: publish2
+        continue-on-error: true
         env:
           PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        if: failure() && env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
+        if: steps.publish.outcome == 'failure' && env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
@@ -119,10 +127,14 @@ jobs:
           track: beta
           status: completed
 
+      - name: Wait before retry 3
+        if: steps.publish2.outcome == 'failure'
+        run: sleep 15
+
       - name: Retry publish (attempt 3)
         env:
           PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        if: failure() && env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
+        if: steps.publish2.outcome == 'failure' && env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
