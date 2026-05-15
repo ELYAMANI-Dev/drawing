@@ -1,4 +1,4 @@
-name: Build Android APK & AAB
+name: Build Signed Release
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.ref }}
+  group: play-publish-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,7 +41,6 @@ jobs:
                   repo: context.repo.repo,
                   artifact_id: artifact.id,
                 });
-                core.info(`Deleted artifact: ${artifact.name} (id: ${artifact.id})`);
               } catch (e) {
                 if (e.status !== 404) throw e;
               }
@@ -50,12 +49,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: cleanup
-    env:
-      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -66,24 +62,27 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          PKG=$(grep 'applicationId' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          AD_URL="${{ secrets.AD_CONFIG_URL }}"
-          if [ -z "$AD_URL" ]; then
-            AD_URL="https://pub-60aab9788366407d923c3b1d4a441449.r2.dev/config/${PKG}.json"
-          fi
-          echo "AD_CONFIG_URL=${AD_URL}" >> local.properties
-          echo "AD_CONFIG_URL -> ${AD_URL}"
-
-      - name: Decode keystore
-        if: env.HAS_KEYSTORE == 'true'
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+          echo "KEYSTORE_FILE=release.keystore" >> local.properties
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> local.properties
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> local.properties
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> local.properties
+          echo "AD_CONFIG_URL=${{ secrets.AD_CONFIG_URL }}" >> local.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Get package name
+        id: get-package
+        run: |
+          PKG=$(grep 'applicationId' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "package=$PKG" >> "$GITHUB_OUTPUT"
+          echo "Package: $PKG"
 
       - name: Get latest versionCode from Play Store and increment
         id: version
@@ -151,50 +150,46 @@ jobs:
           sed -i "s/versionCode = [0-9]*/versionCode = ${{ steps.version.outputs.code }}/" app/build.gradle.kts
           echo "versionCode set to ${{ steps.version.outputs.code }}"
           grep versionCode app/build.gradle.kts
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
 
-      - name: Build Release APK & AAB
-        if: env.HAS_KEYSTORE == 'true'
-        env:
-          KEYSTORE_FILE: ${{ github.workspace }}/keystore.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          ./gradlew assembleRelease --no-daemon
-          ./gradlew bundleRelease --no-daemon
+      - name: Build Signed Release AAB
+        run: ./gradlew bundleRelease
 
-      - name: Get package name
-        id: get-package
-        run: |
-          PKG=$(grep 'applicationId' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          echo "package=$PKG" >> "$GITHUB_OUTPUT"
-          echo "Package: $PKG"
-
-      - name: Upload Debug APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload Release AAB artifact
-        if: env.HAS_KEYSTORE == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-aab
-          path: app/build/outputs/bundle/release/*.aab
-
-
-      - name: Publish to Google Play (beta track)
+      - name: Publish to Google Play (beta)
         env:
           PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        if: env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
+        if: env.PLAY_KEY != ''
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
           packageName: ${{ steps.get-package.outputs.package }}
-          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          releaseFiles: app/build/outputs/bundle/release/*.aab
           track: beta
           status: draft
-
+
+      - name: Upload AAB
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.get-package.outputs.package }}-aab
+          path: app/build/outputs/bundle/release/*.aab
+          retention-days: 1
+          overwrite: true
+
+      - name: Update store listing
+        env:
+          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
+        if: always() && env.PLAY_KEY != ''
+        continue-on-error: true
+        run: |
+          sudo gem install fastlane --no-document
+          echo '${{ secrets.PLAY_STORE_JSON_KEY }}' > /tmp/play-key.json
+          fastlane supply \
+            --json_key /tmp/play-key.json \
+            --package_name "${{ steps.get-package.outputs.package }}" \
+            --metadata_path fastlane/metadata/android \
+            --track beta \
+            --skip_upload_apk \
+            --skip_upload_aab \
+            --skip_upload_changelogs
+          rm -f /tmp/play-key.json
