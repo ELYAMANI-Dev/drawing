@@ -7,6 +7,10 @@ on:
     branches: [drawing_characters]
   workflow_dispatch:
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
@@ -111,7 +115,7 @@ jobs:
 
       - name: Wait before retry
         if: steps.publish.outcome == 'failure'
-        run: sleep 10
+        run: sleep 15
 
       - name: Retry publish (attempt 2)
         id: publish2
@@ -129,7 +133,7 @@ jobs:
 
       - name: Wait before retry 3
         if: steps.publish2.outcome == 'failure'
-        run: sleep 15
+        run: sleep 20
 
       - name: Retry publish (attempt 3)
         env:
