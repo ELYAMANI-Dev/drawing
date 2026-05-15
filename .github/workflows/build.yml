@@ -111,7 +111,7 @@ jobs:
           packageName: ${{ steps.get-package.outputs.package }}
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: beta
-          status: completed
+          status: draft
 
       - name: Wait before retry
         if: steps.publish.outcome == 'failure'
@@ -129,7 +129,7 @@ jobs:
           packageName: ${{ steps.get-package.outputs.package }}
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: beta
-          status: completed
+          status: draft
 
       - name: Wait before retry 3
         if: steps.publish2.outcome == 'failure'
@@ -145,7 +145,7 @@ jobs:
           packageName: ${{ steps.get-package.outputs.package }}
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: beta
-          status: completed
+          status: draft
 
       - name: Upload Debug APK artifact
         if: always()
