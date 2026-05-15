@@ -7,7 +7,7 @@ import java.net.URL
 
 object DrawingApi {
     const val PUBLIC_LABUBU_APP_URL =
-        "https://elyamani-dev.github.io/ff-skin-tools-api/api/poppy-playtime.json"
+        "https://elyamani-dev.github.io/ff-skin-tools-api/api/garten-of-banban.json"
 
     suspend fun fetchPublicAppJson(url: String = PUBLIC_LABUBU_APP_URL): String =
         withContext(Dispatchers.IO) {
