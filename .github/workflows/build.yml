@@ -1,4 +1,4 @@
-name: Build Android APK & AAB
+name: Build Signed Release
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.ref }}
+  group: play-publish-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,7 +41,6 @@ jobs:
                   repo: context.repo.repo,
                   artifact_id: artifact.id,
                 });
-                core.info(`Deleted artifact: ${artifact.name} (id: ${artifact.id})`);
               } catch (e) {
                 if (e.status !== 404) throw e;
               }
@@ -50,12 +49,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: cleanup
-    env:
-      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -66,31 +62,20 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "KEYSTORE_FILE=release.keystore" >> local.properties
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> local.properties
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> local.properties
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> local.properties
           echo "AD_CONFIG_URL=${{ secrets.AD_CONFIG_URL }}" >> local.properties
-
-      - name: Decode keystore
-        if: env.HAS_KEYSTORE == 'true'
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
-
-      - name: Build Release APK & AAB
-        if: env.HAS_KEYSTORE == 'true'
-        env:
-          KEYSTORE_FILE: ${{ github.workspace }}/keystore.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          ./gradlew assembleRelease --no-daemon
-          ./gradlew bundleRelease --no-daemon
 
       - name: Get package name
         id: get-package
@@ -99,64 +84,112 @@ jobs:
           echo "package=$PKG" >> "$GITHUB_OUTPUT"
           echo "Package: $PKG"
 
-      - name: Publish to Google Play (beta track)
-        id: publish
-        continue-on-error: true
+      - name: Get latest versionCode from Play Store and increment
+        id: version
         env:
           PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        if: env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
+        run: |
+          if [ -z "$PLAY_KEY" ]; then
+            echo "No Play key, using run_number as fallback"
+            echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$PLAY_KEY" > /tmp/play-key.json
+          npm install --no-save googleapis@latest 2>/dev/null
+          VERSION_CODE=$(node << 'NODESCRIPT'
+          const { google } = require('googleapis');
+          const fs = require('fs');
+          (async () => {
+            try {
+              const key = JSON.parse(fs.readFileSync('/tmp/play-key.json', 'utf8'));
+              const auth = new google.auth.GoogleAuth({
+                credentials: key,
+                scopes: ['https://www.googleapis.com/auth/androidpublisher']
+              });
+              const client = await auth.getClient();
+              const play = google.androidpublisher({ version: 'v3', auth: client });
+              const pkg = fs.readFileSync('app/build.gradle.kts', 'utf8')
+                .match(/applicationId\s*=\s*"([^"]+)"/)?.[1];
+              if (!pkg) { console.log('0'); process.exit(0); }
+              const edit = await play.edits.insert({ packageName: pkg });
+              const editId = edit.data.id;
+              const tracks = ['production', 'beta', 'alpha', 'internal'];
+              let maxCode = 0;
+              for (const track of tracks) {
+                try {
+                  const t = await play.edits.tracks.get({
+                    packageName: pkg, editId, track
+                  });
+                  for (const rel of (t.data.releases || [])) {
+                    for (const vc of (rel.versionCodes || [])) {
+                      if (parseInt(vc) > maxCode) maxCode = parseInt(vc);
+                    }
+                  }
+                } catch (e) { /* track may not exist */ }
+              }
+              await play.edits.delete({ packageName: pkg, editId });
+              console.log(maxCode);
+            } catch (e) {
+              console.error(e.message);
+              console.log('0');
+            }
+          })();
+          NODESCRIPT
+          )
+          rm -f /tmp/play-key.json
+          NEXT_CODE=$((VERSION_CODE + 1))
+          if [ "$NEXT_CODE" -le 1 ]; then
+            NEXT_CODE=${{ github.run_number }}
+            echo "Fallback to run_number: $NEXT_CODE"
+          fi
+          echo "code=$NEXT_CODE" >> "$GITHUB_OUTPUT"
+          echo "Latest versionCode on Play: $VERSION_CODE -> next: $NEXT_CODE"
+
+      - name: Set versionCode in build.gradle.kts
+        run: |
+          sed -i "s/versionCode = [0-9]*/versionCode = ${{ steps.version.outputs.code }}/" app/build.gradle.kts
+          echo "versionCode set to ${{ steps.version.outputs.code }}"
+          grep versionCode app/build.gradle.kts
+
+      - name: Build Signed Release AAB
+        run: ./gradlew bundleRelease
+
+      - name: Publish to Google Play (beta)
+        env:
+          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
+        if: env.PLAY_KEY != ''
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
           packageName: ${{ steps.get-package.outputs.package }}
-          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          releaseFiles: app/build/outputs/bundle/release/*.aab
           track: beta
           status: draft
 
-      - name: Wait before retry
-        if: steps.publish.outcome == 'failure'
-        run: sleep 15
-
-      - name: Retry publish (attempt 2)
-        id: publish2
-        continue-on-error: true
-        env:
-          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        if: steps.publish.outcome == 'failure' && env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
-          packageName: ${{ steps.get-package.outputs.package }}
-          releaseFiles: app/build/outputs/bundle/release/app-release.aab
-          track: beta
-          status: draft
-
-      - name: Wait before retry 3
-        if: steps.publish2.outcome == 'failure'
-        run: sleep 20
-
-      - name: Retry publish (attempt 3)
-        env:
-          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-        if: steps.publish2.outcome == 'failure' && env.HAS_KEYSTORE == 'true' && env.PLAY_KEY != ''
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
-          packageName: ${{ steps.get-package.outputs.package }}
-          releaseFiles: app/build/outputs/bundle/release/app-release.aab
-          track: beta
-          status: draft
-
-      - name: Upload Debug APK artifact
+      - name: Upload AAB
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload Release AAB artifact
-        if: always() && env.HAS_KEYSTORE == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-aab
+          name: ${{ steps.get-package.outputs.package }}-aab
           path: app/build/outputs/bundle/release/*.aab
+          retention-days: 1
+          overwrite: true
+
+      - name: Update store listing
+        env:
+          PLAY_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
+        if: always() && env.PLAY_KEY != ''
+        continue-on-error: true
+        run: |
+          sudo gem install fastlane --no-document
+          echo '${{ secrets.PLAY_STORE_JSON_KEY }}' > /tmp/play-key.json
+          fastlane supply \
+            --json_key /tmp/play-key.json \
+            --package_name "${{ steps.get-package.outputs.package }}" \
+            --metadata_path fastlane/metadata/android \
+            --track beta \
+            --skip_upload_apk \
+            --skip_upload_aab \
+            --skip_upload_changelogs
+          rm -f /tmp/play-key.json
