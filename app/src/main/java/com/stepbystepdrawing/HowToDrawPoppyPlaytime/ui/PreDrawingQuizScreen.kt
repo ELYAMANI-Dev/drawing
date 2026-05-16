@@ -21,6 +21,7 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.SoundManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 data class PreDrawingQuestion(
     val question: String,
@@ -48,6 +49,7 @@ fun PreDrawingQuizScreen(
     onCancel: () -> Unit,
 ) {
     val activity = LocalContext.current as? Activity
+    val scope = rememberCoroutineScope()
     val questions = remember { PRE_DRAWING_QUESTIONS.shuffled().take(3) }
     var currentIndex by remember { mutableIntStateOf(0) }
     var score by remember { mutableIntStateOf(0) }
@@ -188,7 +190,7 @@ fun PreDrawingQuizScreen(
                     .background(PrimaryBlue, RoundedCornerShape(14.dp))
                     .clickable {
                         if (AdManager.isAdsEnabled) {
-                            activity?.let { AdService.showInterstitial(it) }
+                            activity?.let { a -> scope.launch { AdService.showInterstitial(a) } }
                         }
                         if (currentIndex < questions.size - 1) {
                             currentIndex++
