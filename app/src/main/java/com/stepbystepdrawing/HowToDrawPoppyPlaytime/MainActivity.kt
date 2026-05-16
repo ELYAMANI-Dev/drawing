@@ -65,6 +65,12 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.FavoritesStore
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UiState
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdService
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.SoundManager
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.PreDrawingQuizScreen
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.QuizScreen
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.SpinWheelDialog
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.UserSurveyScreen
+import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.isSurveyCompleted
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.OfflineConnectionScreen
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.DetailScreen
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.screens.FavoritesScreen
@@ -249,6 +255,14 @@ private fun DrawingStepsMainFlow(
     var luckyReward by remember { mutableStateOf<LuckyReward?>(null) }
     var showHintDialog by remember { mutableStateOf(false) }
 
+    // Survey gate (shown once on first launch)
+    var surveyCompleted by remember { mutableStateOf(isSurveyCompleted(appContext)) }
+
+    // Pre-drawing quiz gate
+    var showPreDrawingQuiz by remember { mutableStateOf(false) }
+    var preDrawingQuizCharacterName by remember { mutableStateOf("") }
+    var pendingLessonId by remember { mutableStateOf<String?>(null) }
+
     var selectedDrawingId by remember { mutableStateOf<String?>(null) }
     var detailState by remember { mutableStateOf<UiState<DrawingDetails>>(UiState.Loading) }
     var currentStep by remember { mutableIntStateOf(0) }
@@ -321,6 +335,8 @@ private fun DrawingStepsMainFlow(
 
     BackHandler {
         when {
+            showPreDrawingQuiz -> { showPreDrawingQuiz = false }
+            showQuiz -> { showQuiz = false }
             selectedDrawingId != null -> {
                 selectedDrawingId = null
                 detailState = UiState.Loading
@@ -342,6 +358,26 @@ private fun DrawingStepsMainFlow(
             }
             else -> showExitDialog = true
         }
+    }
+
+    // User survey gate (first launch only)
+    if (!surveyCompleted) {
+        UserSurveyScreen(onComplete = { surveyCompleted = true })
+        return
+    }
+
+    // Pre-drawing quiz gate
+    if (showPreDrawingQuiz) {
+        PreDrawingQuizScreen(
+            characterName = preDrawingQuizCharacterName,
+            onPass = {
+                showPreDrawingQuiz = false
+                showResultFirst = false
+                currentStep = 0
+            },
+            onCancel = { showPreDrawingQuiz = false }
+        )
+        return
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
@@ -455,8 +491,9 @@ private fun DrawingStepsMainFlow(
                         MixpanelAnalytics.trackFavoriteToggled(id, id in favoriteDrawingIds)
                     },
                     onStartSteps = {
-                        showResultFirst = false
-                        currentStep = 0
+                        val title = session.cards.firstOrNull { it.id == selectedDrawingId }?.title ?: ""
+                        preDrawingQuizCharacterName = title
+                        showPreDrawingQuiz = true
                     },
                     onGoToPreview = { showResultFirst = true },
                     onCompleteLesson = {
