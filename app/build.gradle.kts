@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.banban.garten"
+        applicationId = "com.skibidi.draw"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
