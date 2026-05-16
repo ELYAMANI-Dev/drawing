@@ -187,6 +187,9 @@ fun PreDrawingQuizScreen(
                     .fillMaxWidth()
                     .background(PrimaryBlue, RoundedCornerShape(14.dp))
                     .clickable {
+                        if (AdManager.isAdsEnabled) {
+                            activity?.let { AdService.showInterstitial(it) }
+                        }
                         if (currentIndex < questions.size - 1) {
                             currentIndex++
                             selectedAnswer = -1
