@@ -66,10 +66,7 @@ import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.RetentionManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.data.UiState
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.AdService
-import com.stepbystepdrawing.HowToDrawPoppyPlaytime.services.SoundManager
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.PreDrawingQuizScreen
-import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.QuizScreen
-import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.SpinWheelDialog
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.UserSurveyScreen
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.isSurveyCompleted
 import com.stepbystepdrawing.HowToDrawPoppyPlaytime.ui.components.OfflineConnectionScreen
@@ -373,7 +370,6 @@ private fun DrawingStepsMainFlow(
     BackHandler {
         when {
             showPreDrawingQuiz -> { showPreDrawingQuiz = false }
-            showQuiz -> { showQuiz = false }
             selectedDrawingId != null -> {
                 selectedDrawingId = null
                 detailState = UiState.Loading
