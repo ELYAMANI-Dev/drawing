@@ -19,14 +19,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.skibidi.draw"
+        applicationId = "com.skibskib.official"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         // Launcher label, splash title, and anywhere that uses @string/app_name
-        resValue("string", "app_name", "Draw banban")
+        resValue("string", "app_name", "Skib Skibidi Toilet Draw")
 
         buildConfigField("String", "AD_CONFIG_URL", "\"${localProperties.getProperty("AD_CONFIG_URL", "")}\"")
 
