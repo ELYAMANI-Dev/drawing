@@ -19,14 +19,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.gartenbanban.coloring"
+        applicationId = "com.garbanofdr.official"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         // Launcher label, splash title, and anywhere that uses @string/app_name
-        resValue("string", "app_name", "Garten Of BanBan 9 Coloring")
+        resValue("string", "app_name", "Garten of Banban 9 Drawing")
 
         buildConfigField("String", "AD_CONFIG_URL", "\"${localProperties.getProperty("AD_CONFIG_URL", "")}\"")
 
